@@ -1,0 +1,32 @@
+# Platform trials P-17 and P-22 (combsmith/software-factory#10): is a run's name set when the run
+# is created, even for a run whose job never starts, and how soon after a dispatch is the run in
+# the list of the workflow's runs? The name carries the id the dispatch passes in. With runner
+# "none" the job asks for a label no runner has, so it waits queued and never starts; the trial
+# cancels it. It runs only when dispatched, holds no permission, and reads no secret.
+name: p17-p22-run-records
+run-name: sf-trial ${{ inputs.id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      id:
+        description: The unique id this run is named for
+        required: true
+        type: string
+      runner:
+        description: hosted, or none for a job that never starts
+        required: true
+        type: choice
+        options:
+          - hosted
+          - none
+
+permissions: {}
+
+jobs:
+  trial:
+    runs-on: ${{ inputs.runner == 'none' && 'sf-trial-p17-no-such-runner' || 'ubuntu-latest' }}
+    timeout-minutes: 2
+    steps:
+      - name: Say only that the job started
+        run: echo "started"
