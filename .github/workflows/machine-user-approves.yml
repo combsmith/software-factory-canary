@@ -1,0 +1,32 @@
+# Platform trials P-1, P-7, P-24 and P-28 (combsmith/software-factory#24): the machine user approves
+# one pull request. Its token lives only in the environment main-only, which only main may deploy
+# to and which waits for the Maintainer's click. The job prints only the review's id, state, commit
+# and author, never the token. It runs only when dispatched, on main.
+name: machine-user-approves
+run-name: approve pull request ${{ inputs.pr }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: The number of the pull request to approve
+        required: true
+        type: number
+
+permissions: {}
+
+jobs:
+  approve:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: main-only
+    timeout-minutes: 5
+    steps:
+      - name: Approve, and print only the review's id, state, commit and author
+        env:
+          GH_TOKEN: ${{ secrets.DONPETRY_BOT }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ inputs.pr }}
+        run: |
+          gh api -X POST "repos/$GH_REPO/pulls/$PR/reviews" -f event=APPROVE \
+            --jq '{id, state, commit_id, author: .user.login}'
