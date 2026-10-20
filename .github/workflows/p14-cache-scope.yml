@@ -1,0 +1,65 @@
+# Platform trial P-14 (combsmith/software-factory#187): can a job with no permissions and no cache action write the
+# default-branch cache scope? It runs only when dispatched, on the branch it is dispatched on, holds no permission and
+# reads no secret. It asks the cache API with its own GITHUB_TOKEN (list, delete), says whether the runner's cache
+# service token reaches a run step at all, and if it does writes one entry through that service, whose scope the
+# Maintainer's login then reads. Every capture is redacted inside the job by tools/redact_trial.py of
+# combsmith/software-factory, checked out at a pinned commit, before it is uploaded; nothing raw leaves the runner.
+name: p14-cache-scope
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  cache:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: combsmith/software-factory
+          ref: 1af2d69d3a961606e7857db9d2946d5d0328d761
+          path: sf
+          persist-credentials: false
+      - name: Ask the cache API with the job's own token, then the runner's cache service with its token if a step has one
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -eu
+          mkdir out
+          echo "$GITHUB_REF" > out/ref.txt
+          curl -sS -i -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/caches" > out/list.raw || true
+          curl -sS -i -X DELETE -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/caches?key=p14-none" > out/delete.raw || true
+          if [ -n "${ACTIONS_RUNTIME_TOKEN:-}" ] && [ -n "${ACTIONS_RESULTS_URL:-}" ]; then
+            echo "set" > out/runtime-token.txt
+            key="p14-$RUN_ID"; version=$(printf '%s' "$key" | sha256sum | cut -c1-64)
+            printf '{"key":"%s","version":"%s"}' "$key" "$version" > out/create.json
+            curl -sS -i -X POST -H "Authorization: Bearer $ACTIONS_RUNTIME_TOKEN" -H "Content-Type: application/json" \
+              --data-binary @out/create.json \
+              "${ACTIONS_RESULTS_URL}twirp/github.actions.results.api.v1.CacheService/CreateCacheEntry" > out/create.raw || true
+            url=$(tr -d '\r' < out/create.raw | sed -n '/^{/,$p' | python3 -c 'import json,sys; print(json.load(sys.stdin).get("signed_upload_url",""))' 2>/dev/null || true)
+            if [ -n "$url" ]; then
+              printf 'p14' > out/blob
+              curl -sS -i -X PUT -H "x-ms-blob-type: BlockBlob" -H "Content-Type: application/octet-stream" \
+                --data-binary @out/blob "$url" > out/upload.raw || true
+              printf '{"key":"%s","version":"%s","size_bytes":3}' "$key" "$version" > out/finalize.json
+              curl -sS -i -X POST -H "Authorization: Bearer $ACTIONS_RUNTIME_TOKEN" -H "Content-Type: application/json" \
+                --data-binary @out/finalize.json \
+                "${ACTIONS_RESULTS_URL}twirp/github.actions.results.api.v1.CacheService/FinalizeCacheEntryUpload" > out/finalize.raw || true
+            fi
+            rm -f out/blob
+          else
+            echo "not set" > out/runtime-token.txt
+          fi
+          for raw in out/*.raw; do
+            (cd sf && python3 -m tools.redact_trial "../$raw" "../${raw%.raw}.clean")
+            rm -f "$raw"
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: p14-out
+          path: out
