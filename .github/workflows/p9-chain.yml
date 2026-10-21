@@ -44,6 +44,7 @@ jobs:
             curl -sS -i -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
               --data-binary @out/dispatch.json \
               "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/workflows/p9-chain.yml/dispatches" > out/dispatch.raw || true
+            tr -d '\r' < out/dispatch.raw > out/dispatch.lf && mv out/dispatch.lf out/dispatch.raw
             (cd sf && python3 -m tools.redact_trial ../out/dispatch.raw ../out/dispatch.clean)
             rm -f out/dispatch.raw
           fi
