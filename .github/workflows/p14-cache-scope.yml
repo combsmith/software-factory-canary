@@ -56,6 +56,7 @@ jobs:
             echo "not set" > out/runtime-token.txt
           fi
           for raw in out/*.raw; do
+            tr -d '\r' < "$raw" > "$raw.lf" && mv "$raw.lf" "$raw"
             (cd sf && python3 -m tools.redact_trial "../$raw" "../${raw%.raw}.clean")
             rm -f "$raw"
           done
