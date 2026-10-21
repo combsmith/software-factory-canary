@@ -1,0 +1,20 @@
+# Platform trial P-27 (combsmith/software-factory#187), half (b): a workflow file added in a fork, on pull_request,
+# schedule and workflow_dispatch. In the base repo it can run only as the pull request's own run: the schedule and the
+# dispatch belong to the fork, where nothing dispatches it. It holds no permission, reads no secret, and its one step
+# prints a line.
+name: p27-fork
+
+on:
+  pull_request:
+  schedule:
+    - cron: '3,8,13,18,23,28,33,38,43,48,53,58 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  note:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - run: echo "a fork's workflow"
