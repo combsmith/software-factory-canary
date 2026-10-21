@@ -1,0 +1,12 @@
+# Trial P-45 (software-factory, issue 251): Dependabot version updates for GitHub Actions, allowed for
+# actions/checkout alone, so that its pull request for the pin in p45-pinned.yml can be read: its author, the
+# last pusher of its head and the class the port gives it.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: daily
+    allow:
+      - dependency-name: actions/checkout
+    open-pull-requests-limit: 1
