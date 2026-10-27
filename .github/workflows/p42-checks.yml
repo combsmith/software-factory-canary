@@ -1,0 +1,47 @@
+# Platform trial P-42 (combsmith/software-factory#250): the check conclusions it asks about, on a pull request that
+# touches p42/ and on a push to its branch, so one commit has two check suites.
+name: p42-checks
+on:
+  pull_request:
+    paths: ["p42/**"]
+  push:
+    branches: ["trial/p-42*"]
+    paths: ["p42/**"]
+permissions: {}
+jobs:
+  timed-out:
+    name: p42 / timed-out
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - run: sleep 120
+  skipped:
+    name: p42 / skipped
+    if: false
+    runs-on: ubuntu-latest
+    steps:
+      - run: true
+  cancelled:
+    name: p42 / cancelled
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - run: sleep 600
+  posted:
+    name: p42 / posts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      checks: write
+    steps:
+      - name: Post a neutral check, one under a required check's name, and one under an unlisted criterion's
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          for name in "p42 / neutral" "p2-queue-check" "acceptance: a criterion no contract lists"; do
+            conclusion=success; [ "$name" = "p42 / neutral" ] && conclusion=neutral
+            gh api -X POST "repos/$GH_REPO/check-runs" -f name="$name" -f head_sha="$SHA" \
+              -f status=completed -f conclusion="$conclusion" --jq '{id, name, conclusion}'
+          done

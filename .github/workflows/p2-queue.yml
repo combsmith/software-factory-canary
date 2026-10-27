@@ -1,0 +1,23 @@
+# Platform trial P-2 (combsmith/software-factory#185): the required check of the canary's merge queue. On a merge
+# group it waits four minutes, so a read can see the pull request queued, and fails where p2/eject is.
+name: p2-queue
+on:
+  pull_request:
+    branches: [main]
+  merge_group:
+permissions:
+  contents: read
+jobs:
+  check:
+    name: p2-queue-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: On a merge group, wait so a read can see the queue, and fail where p2/eject is
+        if: github.event_name == 'merge_group'
+        run: |
+          sleep 240
+          if [ -e p2/eject ]; then echo "p2/eject is here: the merge group fails"; exit 1; fi

@@ -1,4 +1,4 @@
-# Platform trials P-1, P-7, P-24 and P-28 (combsmith/software-factory#24): the machine user approves
+# Platform trials P-1, P-7, P-24 and P-28 (combsmith/software-factory#24), and P-7.refused (#195): the machine user approves
 # one pull request. Its token lives only in the environment main-only, which only main may deploy
 # to and which waits for the Maintainer's click. The job prints only the review's id, state, commit
 # and author, never the token. It runs only when dispatched, on main.
@@ -12,6 +12,10 @@ on:
         description: The number of the pull request to approve
         required: true
         type: number
+      commit:
+        description: The commit to approve, if not the head (P-7.refused)
+        required: false
+        type: string
 
 permissions: {}
 
@@ -27,6 +31,8 @@ jobs:
           GH_TOKEN: ${{ secrets.DONPETRY_BOT }}
           GH_REPO: ${{ github.repository }}
           PR: ${{ inputs.pr }}
+          COMMIT: ${{ inputs.commit }}
         run: |
-          gh api -X POST "repos/$GH_REPO/pulls/$PR/reviews" -f event=APPROVE \
-            --jq '{id, state, commit_id, author: .user.login}'
+          set -- -f event=APPROVE
+          [ -z "$COMMIT" ] || set -- "$@" -f commit_id="$COMMIT"
+          gh api -X POST "repos/$GH_REPO/pulls/$PR/reviews" "$@" --jq '{id, state, commit_id, author: .user.login}'
