@@ -1,0 +1,44 @@
+# Platform trial P-42, the step-timeout case (combsmith/software-factory#388): a step whose timeout-minutes is shorter
+# than its job's runs past it. On this trial's own pull request alone.
+name: p42-step-timeout
+on:
+  pull_request:
+    paths: ["p42s/**"]
+permissions:
+  contents: read
+jobs:
+  step-timeout:
+    name: p42s / step-timeout
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Sleep past the step's limit
+        timeout-minutes: 1
+        run: sleep 120
+      - name: After, always
+        if: always()
+        run: echo "the job went on after the step's timeout"
+  step-timeout-continue:
+    name: p42s / step-timeout, continue-on-error on the step
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Sleep past the step's limit
+        timeout-minutes: 1
+        continue-on-error: true
+        run: sleep 120
+      - name: After, always
+        if: always()
+        run: echo "the job went on after the step's timeout"
+  job-continue:
+    name: p42s / step-timeout, continue-on-error on the job
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - name: Sleep past the step's limit
+        timeout-minutes: 1
+        run: sleep 120
+      - name: After, always
+        if: always()
+        run: echo "the job went on after the step's timeout"
