@@ -1,0 +1,7 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# The Factory's design, section 4.2: any feature by which a reviewer approves once its threads are
+# resolved is switched off, in that reviewer's configuration file in the repo. Platform trial P-25
+# (combsmith/software-factory#366) runs with it off. It stays on the canary.
+reviews:
+  auto_approvals:
+    enabled: false
