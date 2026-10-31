@@ -1,0 +1,15 @@
+# Platform trial P-35 (combsmith/software-factory#186): a job a pull request adds in a file of its own, under a required
+# check's name. Does it report under GitHub Actions, with this file's path?
+name: p35-lens-name
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  check:
+    name: p2-queue-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: echo "This job is not the queue's check. It only carries that check's name."
