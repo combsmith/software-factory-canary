@@ -1,0 +1,17 @@
+# Platform trial P-36 (combsmith/software-factory#186): a file CodeQL should find fault with, so that its check fails.
+# Nothing runs it: pull_request_target reads the base branch's copy, which has no such file, and this never merges.
+name: p36-failing-verdict
+on:
+  pull_request_target:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - run: ./p36/never-run.sh
+      - run: echo "${{ github.event.pull_request.title }}"
