@@ -1,0 +1,43 @@
+# Platform trial P-35 (combsmith/software-factory#186): where a check run created with GITHUB_TOKEN and checks: write
+# lands, and whether that token can update a check run of another workflow's run. Every answer goes to this job's log.
+name: p35-token-check
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  token:
+    name: p35-token
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      checks: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Create a check run, and update it
+        run: |
+          created=$(gh api -X POST "repos/$REPO/check-runs" -f name=p35-created -f head_sha="$HEAD_SHA" -f status=in_progress --jq .id)
+          echo "created=$created" >> "$GITHUB_ENV"
+          echo "P35 created: $created"
+          gh api "repos/$REPO/check-runs/$created" --jq '"P35 read: name=\(.name) status=\(.status) suite=\(.check_suite.id) app=\(.app.id)"'
+          gh api -X PATCH "repos/$REPO/check-runs/$created" -f status=completed -f conclusion=neutral --jq '"P35 own update: status=\(.status) conclusion=\(.conclusion)"'
+      - name: Try to update a check run of another workflow's run, and CodeQL's
+        run: |
+          suite=$(gh api "repos/$REPO/check-runs/$created" --jq .check_suite.id)
+          for i in $(seq 1 40); do
+            other=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100" --jq "[.check_runs[]|select(.app.id==15368 and .check_suite.id!=$suite)][0].id // empty")
+            codeql=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100" --jq '[.check_runs[]|select(.name=="CodeQL")][0].id // empty')
+            [ -n "$other" ] && [ -n "$codeql" ] && break
+            sleep 15
+          done
+          for target in "$other" "$codeql"; do
+            [ -n "$target" ] || continue
+            gh api "repos/$REPO/check-runs/$target" --jq '"P35 target: id=\(.id) name=\(.name) app=\(.app.id) suite=\(.check_suite.id) status=\(.status) conclusion=\(.conclusion)"'
+            gh api -i -X PATCH "repos/$REPO/check-runs/$target" -f status=completed -f conclusion=failure 2>&1 | sed -n -e '1s/^/P35 update status: /p' -e '$s/^/P35 update answer: /p' | cut -c1-300
+            gh api "repos/$REPO/check-runs/$target" --jq '"P35 after: id=\(.id) status=\(.status) conclusion=\(.conclusion)"'
+          done
