@@ -1,0 +1,65 @@
+# Platform trial P-36 (combsmith/software-factory#186): can an upload to code scanning under CodeQL's tool and category,
+# by an identity holding security_events: write, change the conclusion of the check run CodeQL? It waits for CodeQL's own
+# verdict, uploads one made-up finding for the merge ref and then for the head, and reads the check after each.
+name: p36-sarif
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  upload:
+    name: p36-upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      checks: read
+      security-events: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      MERGE_SHA: ${{ github.sha }}
+      PR: ${{ github.event.pull_request.number }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Wait for CodeQL's own verdict
+        run: |
+          for i in $(seq 1 48); do
+            state=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100" --jq '[.check_runs[]|select(.name=="CodeQL")][0].status // "none"')
+            [ "$state" = completed ] && break
+            sleep 15
+          done
+          echo "P36 CodeQL state after the wait: $state"
+      - name: Upload under CodeQL's tool and category, and read the check after each
+        run: |
+          read_check() {
+            gh api "repos/$REPO/commits/$HEAD_SHA/check-runs?filter=all&per_page=100" --jq ".check_runs[]|select(.name==\"CodeQL\")|\"P36 $1: id=\(.id) app=\(.app.id) suite=\(.check_suite.id) status=\(.status) conclusion=\(.conclusion) completed=\(.completed_at)\""
+          }
+          upload() {  # REF COMMIT
+            python3 - "$1" "$2" > body.json <<'PY'
+          import base64, gzip, json, sys
+          sarif = {"$schema": "https://json.schemastore.org/sarif-2.1.0.json", "version": "2.1.0", "runs": [{
+              "tool": {"driver": {"name": "CodeQL", "semanticVersion": "2.0.0", "rules": [{
+                  "id": "p36/made-up", "name": "MadeUp", "shortDescription": {"text": "A platform trial's made-up finding"},
+                  "defaultConfiguration": {"level": "error"},
+                  "properties": {"security-severity": "9.8", "tags": ["security"], "precision": "high", "problem.severity": "error"}}]}},
+              "automationDetails": {"id": "/language:actions/"},
+              "results": [{"ruleId": "p36/made-up", "level": "error", "message": {"text": "A platform trial's made-up finding"},
+                           "partialFingerprints": {"primaryLocationLineHash": "p36-trial"},
+                           "locations": [{"physicalLocation": {"artifactLocation": {"uri": ".github/workflows/p36-sarif.yml"},
+                                                               "region": {"startLine": 1}}}]}]}]}
+          packed = base64.b64encode(gzip.compress(json.dumps(sarif).encode())).decode()
+          print(json.dumps({"commit_sha": sys.argv[2], "ref": sys.argv[1], "sarif": packed}))
+          PY
+            id=$(gh api -X POST "repos/$REPO/code-scanning/sarifs" --input body.json --jq .id)
+            echo "P36 upload for $1: id=$id"
+            sleep 60
+            gh api "repos/$REPO/code-scanning/sarifs/$id" --jq '"P36 processing: \(.processing_status) errors=\(.errors)"'
+          }
+          read_check before
+          upload "refs/pull/$PR/merge" "$MERGE_SHA"
+          sleep 240
+          read_check after-merge-ref
+          upload "refs/pull/$PR/head" "$HEAD_SHA"
+          sleep 240
+          read_check after-head
