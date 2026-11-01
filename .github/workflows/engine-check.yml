@@ -1,0 +1,26 @@
+# The Engine's check end to end (software-factory, decision 0106): main's own install of the CLI and one review by the
+# eval job's path, for one model call. Weekly, and dispatched before each cut. All of it is in harness/eval/canary.py.
+name: engine-check
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  engine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: combsmith/software-factory
+          ref: main
+          persist-credentials: false
+      - run: python3 -m harness.eval.canary install
+        timeout-minutes: 3
+      - run: python3 -m harness.eval.canary review
+        timeout-minutes: 10
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CLI: /usr/local/bin/claude
