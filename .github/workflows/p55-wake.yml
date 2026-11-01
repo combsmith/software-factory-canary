@@ -1,0 +1,23 @@
+name: p55-wake
+on:
+  workflow_run:
+    workflows:
+      - sf-run
+      - p55-control
+    types:
+      - completed
+permissions: {}
+jobs:
+  plain:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Which run's end woke this
+        env:
+          WHAT: ${{ github.event.workflow_run.name }}
+          HOW: ${{ github.event.workflow_run.event }}
+          WHO: ${{ github.event.workflow_run.actor.login }}
+          ENDED: ${{ github.event.workflow_run.conclusion }}
+          ID: ${{ github.event.workflow_run.id }}
+        run: |
+          echo "woken by run $ID, name=$WHAT event=$HOW actor=$WHO conclusion=$ENDED"
