@@ -1,0 +1,14 @@
+name: p55-actor
+on:
+  workflow_dispatch:
+permissions: {}
+jobs:
+  plain:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: How github.actor_id compares for a person's dispatch
+        run: |
+          echo "actor_id=${{ github.actor_id }} json=${{ toJSON(github.actor_id) }} actor=${{ github.actor }}"
+          echo "as string 41898282: ${{ github.actor_id == '41898282' }}; as number 41898282: ${{ github.actor_id == 41898282 }}"
+          echo "as its own string: ${{ github.actor_id == format('{0}', github.actor_id) }}"
