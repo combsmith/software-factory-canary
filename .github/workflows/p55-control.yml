@@ -1,0 +1,36 @@
+name: p55-control
+on:
+  workflow_dispatch:
+permissions: {}
+jobs:
+  plain:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    environment: p55-throwaway
+    steps:
+      - name: Probe, a job of this file naming the environment
+        env:
+          P55_SECRET: ${{ secrets.P55_SECRET }}
+        run: |
+          if [ -n "$P55_SECRET" ]; then
+            echo "secret: present, length ${#P55_SECRET}, sha256 $(printf %s "$P55_SECRET" | sha256sum | cut -c1-16)"
+          else
+            echo "secret: absent"
+          fi
+  nothing:
+    permissions:
+      contents: read
+    uses: combsmith/software-factory-canary/.github/workflows/run-jobs.yml@p55/v0-next
+    with:
+      name: control
+      item: control-nothing
+      pass: p55
+  inherit:
+    permissions:
+      contents: read
+    uses: combsmith/software-factory-canary/.github/workflows/run-jobs.yml@p55/v0-next
+    with:
+      name: control
+      item: control-inherit
+      pass: p55
+    secrets: inherit
