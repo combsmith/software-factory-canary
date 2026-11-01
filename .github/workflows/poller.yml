@@ -1,0 +1,20 @@
+name: sf-poller
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - factory
+      - ci
+      - sf-run
+    types:
+      - completed
+permissions: {}
+jobs:
+  pass:
+    permissions:
+      actions: write
+      contents: read
+    concurrency:
+      group: sf-poller
+      cancel-in-progress: false
+    uses: combsmith/software-factory-canary/.github/workflows/pass.yml@p55/v0-next
