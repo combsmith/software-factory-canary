@@ -1,0 +1,18 @@
+name: p12-other
+on:
+  workflow_dispatch:
+permissions: {}
+jobs:
+  other:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      checks: write
+    steps:
+      - name: Post a run of the status's name, as another App
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD: ${{ github.sha }}
+        run: |
+          gh api -X POST "repos/$REPO/check-runs" -f name=status_on_item -f "head_sha=$HEAD" -f status=completed -f conclusion=neutral -f external_id=another-app --jq '.id,.app.slug'
