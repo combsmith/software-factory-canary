@@ -1,0 +1,37 @@
+# Trial P-59 (software-factory, the review Role reading a pull request's head): on a GitHub-hosted Linux runner, with
+# bubblewrap and the scrub as the run job has them, is the pinned model CLI given the read tools alone held to its
+# working folder? It holds no secret and may only read the repository. No model runs: the CLI's API is a stub on the
+# runner, p59/stub.py, with a dummy key. It runs only on a push to trial/p-59 that changes p59/ or this file. p59/run.sh
+# and p59/stub.py are software-factory's tools/trial_p59_read_confinement.sh and tools/trial_p50_stub.py, copied whole.
+# The CLI is installed as software-factory's run job installs it, by the vendor's checksum, and no sysctl is changed.
+name: trial-p59
+on:
+  push:
+    branches: [trial/p-59]
+    paths: ["p59/**", ".github/workflows/trial-p59.yml"]
+permissions: {}
+jobs:
+  confinement:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the CLI at the Engine's pin, and bubblewrap, as the run job does
+        env:
+          CLI_VERSION: "2.1.306"
+          CLI_CHECKSUM: "520bc6c1f40af466bd03a278b5ae1af1a2938bc7de5b9e5cb15526da20d71cfe"
+        run: |
+          url="https://downloads.claude.ai/claude-code-releases/${CLI_VERSION}/linux-x64/claude"
+          curl -sSfL --proto '=https' --proto-redir '=https' -o /tmp/claude "${url}"
+          echo "${CLI_CHECKSUM}  /tmp/claude" | sha256sum -c
+          chmod 0755 /tmp/claude
+          sudo mv /tmp/claude /usr/local/bin/claude
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends bubblewrap
+      # OUT is under /tmp, which is sticky: the script refuses a parent another user can write to, and /home is one here.
+      - name: The Task in each configuration, engine and unguarded
+        run: bash p59/run.sh /tmp/p59-out /usr/local/bin/claude p59/stub.py && cat /tmp/p59-out/checked.json
