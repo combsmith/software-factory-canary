@@ -1,0 +1,21 @@
+# combsmith/software-factory#743: the CLI install's apt lines over HTTPS, with a per-connection timeout, on the Run's
+# runner. Granted nothing, holds no secret, checks nothing out.
+name: apt-743
+on:
+  pull_request:
+    paths: ["apt-743/**"]
+permissions: {}
+jobs:
+  apt:
+    name: apt-743 / bubblewrap
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - timeout-minutes: 3
+        run: |
+          echo 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu noble main' > /tmp/ubuntu.list
+          echo 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu noble-updates main' >> /tmp/ubuntu.list
+          echo 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu noble-security main' >> /tmp/ubuntu.list
+          sudo apt-get update -q -o Dir::Etc::sourcelist=/tmp/ubuntu.list -o Dir::Etc::sourceparts=- -o Acquire::Retries=2 -o Acquire::https::Timeout=10
+          sudo apt-get install -y --no-install-recommends -o Dir::Etc::sourcelist=/tmp/ubuntu.list -o Dir::Etc::sourceparts=- -o Acquire::https::Timeout=10 bubblewrap
+          bwrap --version
