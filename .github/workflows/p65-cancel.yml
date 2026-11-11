@@ -1,0 +1,26 @@
+# Platform trial P-65 (combsmith/software-factory#681): a pull request's run cancelled mid-way, its judging job run
+# under if: always(), and the runs a push back to the same head, a re-run and a reopening start. Granted nothing,
+# holds no secret, checks nothing out.
+name: p65-cancel
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths: ["p65/**"]
+permissions: {}
+jobs:
+  work:
+    name: p65 / work
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - run: sleep 240
+  verify:
+    name: p65 / verify
+    needs: [work]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - env:
+          WORK: ${{ needs.work.result }}
+        run: test "$WORK" = success
