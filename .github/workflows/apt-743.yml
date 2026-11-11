@@ -1,4 +1,4 @@
-# combsmith/software-factory#743: the CLI install's apt lines, as the Run's jobs will hold them, on the Run's runner.
+# combsmith/software-factory#743: which hosts the Run's runner resolves, and bubblewrap from a mirror outside ubuntu.com.
 # Granted nothing, holds no secret, checks nothing out.
 name: apt-743
 on:
@@ -9,13 +9,19 @@ jobs:
   apt:
     name: apt-743 / bubblewrap
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 6
     steps:
+      - timeout-minutes: 2
+        continue-on-error: true
+        run: |
+          for h in azure.archive.ubuntu.com archive.ubuntu.com security.ubuntu.com ubuntu.com launchpad.net ppa.launchpadcontent.net mirrors.edge.kernel.org mirror.math.princeton.edu packages.microsoft.com github.com; do echo "$h: $(timeout 8 getent hosts $h | head -1 || echo none)"; done
+          command -v bwrap || echo "no bwrap on the image"
+          cat /etc/resolv.conf | grep -v '^#'
       - timeout-minutes: 3
         run: |
-          echo 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] http://archive.ubuntu.com/ubuntu noble main' > /tmp/ubuntu.list
-          echo 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] http://archive.ubuntu.com/ubuntu noble-updates main' >> /tmp/ubuntu.list
-          echo 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] http://security.ubuntu.com/ubuntu noble-security main' >> /tmp/ubuntu.list
+          echo 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] http://mirrors.edge.kernel.org/ubuntu noble main' > /tmp/ubuntu.list
+          echo 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] http://mirrors.edge.kernel.org/ubuntu noble-updates main' >> /tmp/ubuntu.list
+          echo 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] http://mirrors.edge.kernel.org/ubuntu noble-security main' >> /tmp/ubuntu.list
           sudo apt-get update -q -o Dir::Etc::sourcelist=/tmp/ubuntu.list -o Dir::Etc::sourceparts=- -o Acquire::Retries=2
           sudo apt-get install -y --no-install-recommends -o Dir::Etc::sourcelist=/tmp/ubuntu.list -o Dir::Etc::sourceparts=- bubblewrap
           bwrap --version
