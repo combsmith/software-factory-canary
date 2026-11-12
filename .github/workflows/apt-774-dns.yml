@@ -9,16 +9,15 @@ jobs:
   retries-2:
     name: apt-774 / ubuntu.com stalled, retries 2
     runs-on: ubuntu-24.04
-    timeout-minutes: 9
+    timeout-minutes: 10
     steps:
       - timeout-minutes: 2
         run: |
-          sudo ip link add sf0 type dummy
-          sudo ip link set sf0 up
-          sudo resolvectl dns sf0 10.255.255.1
-          sudo resolvectl domain sf0 '~ubuntu.com'
+          sudo resolvectl flush-caches
+          sudo iptables -I OUTPUT -p udp --dport 53 -m string --hex-string '|06|ubuntu|03|com|00|' --algo bm -j DROP
+          sudo iptables -I OUTPUT -p tcp --dport 53 -m string --hex-string '|06|ubuntu|03|com|00|' --algo bm -j DROP
           date -u +%T
-          timeout 40 getent hosts azure.archive.ubuntu.com || echo "lookup failed $(date -u +%T)"
+          timeout 60 getent hosts azure.archive.ubuntu.com || echo "lookup failed $(date -u +%T)"
           getent hosts github.com mirrors.edge.kernel.org
       - timeout-minutes: 5
         run: |
@@ -31,7 +30,7 @@ jobs:
   retries-0:
     name: apt-774 / ubuntu.com stalled, retries 0
     runs-on: ubuntu-24.04
-    timeout-minutes: 9
+    timeout-minutes: 10
     steps:
       - timeout-minutes: 2
         run: |
