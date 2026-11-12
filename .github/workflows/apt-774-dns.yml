@@ -1,0 +1,38 @@
+# combsmith/software-factory#774: the two-mirror block with every ubuntu.com lookup stalled, as on 2026-11-11, at two
+# retry settings. Granted nothing, holds no secret, checks nothing out.
+name: apt-774-dns
+on:
+  pull_request:
+    paths: ["apt-774/**"]
+permissions: {}
+jobs:
+  retries-2:
+    name: apt-774 / ubuntu.com stalled, retries 2
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - run: |
+          IF=$(ip route show default | awk '{print $5; exit}'); sudo resolvectl dns "$IF" 10.255.255.1; sudo resolvectl domain "$IF" '~ubuntu.com'; resolvectl status "$IF" | head -20; date -u +%T; timeout 30 getent hosts azure.archive.ubuntu.com || echo "lookup failed $(date -u +%T)"
+      - timeout-minutes: 5
+        run: |
+          date -u +%T
+          printf '%s\n' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://azure.archive.ubuntu.com/ubuntu noble main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://azure.archive.ubuntu.com/ubuntu noble-updates main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://azure.archive.ubuntu.com/ubuntu noble-security main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu noble main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu noble-updates main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu noble-security main' > /tmp/ubuntu.list
+          sudo apt-get update -q -o Dir::Etc::sourcelist=/tmp/ubuntu.list -o Dir::Etc::sourceparts=- -o Acquire::Retries=2 -o Acquire::https::Timeout=10
+          sudo apt-get install -y --no-install-recommends -o Dir::Etc::sourcelist=/tmp/ubuntu.list -o Dir::Etc::sourceparts=- -o Acquire::Retries=2 -o Acquire::https::Timeout=10 bubblewrap
+          date -u +%T
+          bwrap --version
+  retries-0:
+    name: apt-774 / ubuntu.com stalled, retries 0
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - run: |
+          IF=$(ip route show default | awk '{print $5; exit}'); sudo resolvectl dns "$IF" 10.255.255.1; sudo resolvectl domain "$IF" '~ubuntu.com'; resolvectl status "$IF" | head -20; date -u +%T; timeout 30 getent hosts azure.archive.ubuntu.com || echo "lookup failed $(date -u +%T)"
+      - timeout-minutes: 5
+        run: |
+          date -u +%T
+          printf '%s\n' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://azure.archive.ubuntu.com/ubuntu noble main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://azure.archive.ubuntu.com/ubuntu noble-updates main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://azure.archive.ubuntu.com/ubuntu noble-security main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu noble main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu noble-updates main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu noble-security main' > /tmp/ubuntu.list
+          sudo apt-get update -q -o Dir::Etc::sourcelist=/tmp/ubuntu.list -o Dir::Etc::sourceparts=- -o Acquire::Retries=0 -o Acquire::https::Timeout=10
+          sudo apt-get install -y --no-install-recommends -o Dir::Etc::sourcelist=/tmp/ubuntu.list -o Dir::Etc::sourceparts=- -o Acquire::Retries=0 -o Acquire::https::Timeout=10 bubblewrap
+          date -u +%T
+          bwrap --version
