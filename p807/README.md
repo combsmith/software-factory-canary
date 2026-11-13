@@ -1,1 +1,1 @@
-Trial for combsmith/software-factory#807, head A; closed and its branch deleted after.
+Trial for combsmith/software-factory#807, head B; closed and its branch deleted after.
