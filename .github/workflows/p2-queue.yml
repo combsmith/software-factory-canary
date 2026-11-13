@@ -16,6 +16,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: On a pull request, wait so a read can see the check pending (combsmith/software-factory#807)
+        if: github.event_name == 'pull_request'
+        run: sleep 60
       - name: On a merge group, wait so a read can see the queue, and fail where p2/eject is
         if: github.event_name == 'merge_group'
         run: |
