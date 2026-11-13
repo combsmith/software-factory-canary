@@ -1,6 +1,6 @@
 # combsmith/software-factory#776: the CLI's install with every ubuntu.com lookup stalled for a minute and then failing,
 # by a local DNS stub that never answers an ubuntu.com name and forwards every other, each on its own socket, kernel.org's mirror and the runner's own name given by the hosts file; the update unbounded, as on main,
-# and bounded by `timeout 60`, as #776 proposes. Granted nothing, holds no secret, checks nothing out.
+# and bounded by `timeout 90`; the stub logs each query. Granted nothing, holds no secret, checks nothing out.
 name: apt-776
 on:
   pull_request:
@@ -18,7 +18,7 @@ jobs:
           ip=$(getent ahostsv4 mirrors.edge.kernel.org | awk 'NR==1{print $1}')
           echo "$ip mirrors.edge.kernel.org" | sudo tee -a /etc/hosts
           echo "127.0.1.1 $(hostname)" | sudo tee -a /etc/hosts
-          printf '%s\n' 'import socket, threading' 's = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.bind(("127.0.0.2", 53))' 'def fwd(q, a):' '    f = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); f.settimeout(5)' '    try:' '        f.sendto(q, ("127.0.0.53", 53)); s.sendto(f.recv(4096), a)' '    except OSError: pass' '    f.close()' 'while True:' '    q, a = s.recvfrom(4096)' '    if b"\x06ubuntu\x03com\x00" not in q.lower(): threading.Thread(target=fwd, args=(q, a), daemon=True).start()' > /tmp/stall.py
+          printf '%s\n' 'import socket, threading' 's = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.bind(("127.0.0.2", 53))' 'def fwd(q, a):' '    f = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); f.settimeout(5)' '    try:' '        f.sendto(q, ("127.0.0.53", 53)); s.sendto(f.recv(4096), a)' '    except OSError: pass' '    f.close()' 'import time, sys' 'def name(q):' '    i, out = 12, []' '    while q[i]: out.append(q[i + 1:i + 1 + q[i]].decode("ascii", "replace")); i += 1 + q[i]' '    return ".".join(out) + " type %d" % int.from_bytes(q[i + 1:i + 3], "big")' 'while True:' '    q, a = s.recvfrom(4096)' '    dropped = b"\x06ubuntu\x03com\x00" in q.lower()' '    print(time.strftime("%H:%M:%S"), "dropped" if dropped else "forwarded", name(q), flush=True)' '    if not dropped: threading.Thread(target=fwd, args=(q, a), daemon=True).start()' > /tmp/stall.py
           sudo nohup python3 /tmp/stall.py > /tmp/stall.log 2>&1 &
           sleep 1
           sudo sed -i 's/^hosts:.*/hosts: files dns/' /etc/nsswitch.conf
@@ -38,8 +38,11 @@ jobs:
           sudo apt-get install -y --no-install-recommends -o Dir::Etc::sourcelist=/tmp/ubuntu.list -o Dir::Etc::sourceparts=- -o Acquire::Retries=2 -o Acquire::https::Timeout=10 bubblewrap
           date -u +%T
           bwrap --version
+      - name: What the stub was asked
+        if: always()
+        run: cat /tmp/stall.log
   bounded:
-    name: apt-776 / ubuntu.com stalled, update bounded (the PR's block)
+    name: apt-776 / ubuntu.com stalled, update bounded at 90 s
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -49,7 +52,7 @@ jobs:
           ip=$(getent ahostsv4 mirrors.edge.kernel.org | awk 'NR==1{print $1}')
           echo "$ip mirrors.edge.kernel.org" | sudo tee -a /etc/hosts
           echo "127.0.1.1 $(hostname)" | sudo tee -a /etc/hosts
-          printf '%s\n' 'import socket, threading' 's = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.bind(("127.0.0.2", 53))' 'def fwd(q, a):' '    f = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); f.settimeout(5)' '    try:' '        f.sendto(q, ("127.0.0.53", 53)); s.sendto(f.recv(4096), a)' '    except OSError: pass' '    f.close()' 'while True:' '    q, a = s.recvfrom(4096)' '    if b"\x06ubuntu\x03com\x00" not in q.lower(): threading.Thread(target=fwd, args=(q, a), daemon=True).start()' > /tmp/stall.py
+          printf '%s\n' 'import socket, threading' 's = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.bind(("127.0.0.2", 53))' 'def fwd(q, a):' '    f = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); f.settimeout(5)' '    try:' '        f.sendto(q, ("127.0.0.53", 53)); s.sendto(f.recv(4096), a)' '    except OSError: pass' '    f.close()' 'import time, sys' 'def name(q):' '    i, out = 12, []' '    while q[i]: out.append(q[i + 1:i + 1 + q[i]].decode("ascii", "replace")); i += 1 + q[i]' '    return ".".join(out) + " type %d" % int.from_bytes(q[i + 1:i + 3], "big")' 'while True:' '    q, a = s.recvfrom(4096)' '    dropped = b"\x06ubuntu\x03com\x00" in q.lower()' '    print(time.strftime("%H:%M:%S"), "dropped" if dropped else "forwarded", name(q), flush=True)' '    if not dropped: threading.Thread(target=fwd, args=(q, a), daemon=True).start()' > /tmp/stall.py
           sudo nohup python3 /tmp/stall.py > /tmp/stall.log 2>&1 &
           sleep 1
           sudo sed -i 's/^hosts:.*/hosts: files dns/' /etc/nsswitch.conf
@@ -64,42 +67,14 @@ jobs:
         run: |
           date -u +%T
           printf '%s\n' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://azure.archive.ubuntu.com/ubuntu noble main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://azure.archive.ubuntu.com/ubuntu noble-updates main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://azure.archive.ubuntu.com/ubuntu noble-security main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu noble main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu noble-updates main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu noble-security main' > /tmp/ubuntu.list
-          sudo timeout 60 apt-get update -q -o Dir::Etc::sourcelist=/tmp/ubuntu.list -o Dir::Etc::sourceparts=- -o Acquire::Retries=0 -o Acquire::https::Timeout=10 || true
+          sudo timeout 90 apt-get update -q -o Dir::Etc::sourcelist=/tmp/ubuntu.list -o Dir::Etc::sourceparts=- -o Acquire::Retries=0 -o Acquire::https::Timeout=10 || true
           echo "update ended at $(date -u +%T)"
           sudo apt-get install -y --no-install-recommends -o Dir::Etc::sourcelist=/tmp/ubuntu.list -o Dir::Etc::sourceparts=- -o Acquire::Retries=2 -o Acquire::https::Timeout=10 bubblewrap
           date -u +%T
           bwrap --version
-  bounded-kill:
-    name: apt-776 / ubuntu.com stalled, update bounded with a kill after 10 s
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - name: Every ubuntu.com lookup stalls 60 s; kernel.org and the runner's name by the hosts file
-        timeout-minutes: 3
-        run: |
-          ip=$(getent ahostsv4 mirrors.edge.kernel.org | awk 'NR==1{print $1}')
-          echo "$ip mirrors.edge.kernel.org" | sudo tee -a /etc/hosts
-          echo "127.0.1.1 $(hostname)" | sudo tee -a /etc/hosts
-          printf '%s\n' 'import socket, threading' 's = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.bind(("127.0.0.2", 53))' 'def fwd(q, a):' '    f = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); f.settimeout(5)' '    try:' '        f.sendto(q, ("127.0.0.53", 53)); s.sendto(f.recv(4096), a)' '    except OSError: pass' '    f.close()' 'while True:' '    q, a = s.recvfrom(4096)' '    if b"\x06ubuntu\x03com\x00" not in q.lower(): threading.Thread(target=fwd, args=(q, a), daemon=True).start()' > /tmp/stall.py
-          sudo nohup python3 /tmp/stall.py > /tmp/stall.log 2>&1 &
-          sleep 1
-          sudo sed -i 's/^hosts:.*/hosts: files dns/' /etc/nsswitch.conf
-          sudo rm /etc/resolv.conf
-          printf 'nameserver 127.0.0.2\noptions timeout:30 attempts:2\n' | sudo tee /etc/resolv.conf
-          sudo apt-config dump | grep -iE 'invoke' || true
-          date -u +%T
-          timeout 90 getent ahosts azure.archive.ubuntu.com || echo "lookup ended $? at $(date -u +%T)"
-          getent ahostsv4 mirrors.edge.kernel.org
-      - name: The block
-        timeout-minutes: 3
-        run: |
-          date -u +%T
-          printf '%s\n' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://azure.archive.ubuntu.com/ubuntu noble main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://azure.archive.ubuntu.com/ubuntu noble-updates main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://azure.archive.ubuntu.com/ubuntu noble-security main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu noble main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu noble-updates main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu noble-security main' > /tmp/ubuntu.list
-          sudo timeout -k 10 60 apt-get update -q -o Dir::Etc::sourcelist=/tmp/ubuntu.list -o Dir::Etc::sourceparts=- -o Acquire::Retries=0 -o Acquire::https::Timeout=10 || true
-          echo "update ended at $(date -u +%T)"
-          sudo apt-get install -y --no-install-recommends -o Dir::Etc::sourcelist=/tmp/ubuntu.list -o Dir::Etc::sourceparts=- -o Acquire::Retries=2 -o Acquire::https::Timeout=10 bubblewrap
-          date -u +%T
-          bwrap --version
+      - name: What the stub was asked
+        if: always()
+        run: cat /tmp/stall.log
   both-up:
     name: apt-776 / both mirrors up (the PR's block)
     runs-on: ubuntu-24.04
@@ -110,7 +85,7 @@ jobs:
         run: |
           date -u +%T
           printf '%s\n' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://azure.archive.ubuntu.com/ubuntu noble main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://azure.archive.ubuntu.com/ubuntu noble-updates main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://azure.archive.ubuntu.com/ubuntu noble-security main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu noble main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu noble-updates main' 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu noble-security main' > /tmp/ubuntu.list
-          sudo timeout 60 apt-get update -q -o Dir::Etc::sourcelist=/tmp/ubuntu.list -o Dir::Etc::sourceparts=- -o Acquire::Retries=0 -o Acquire::https::Timeout=10 || true
+          sudo timeout 90 apt-get update -q -o Dir::Etc::sourcelist=/tmp/ubuntu.list -o Dir::Etc::sourceparts=- -o Acquire::Retries=0 -o Acquire::https::Timeout=10 || true
           echo "update ended at $(date -u +%T)"
           sudo apt-get install -y --no-install-recommends -o Dir::Etc::sourcelist=/tmp/ubuntu.list -o Dir::Etc::sourceparts=- -o Acquire::Retries=2 -o Acquire::https::Timeout=10 bubblewrap
           date -u +%T
