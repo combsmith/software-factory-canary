@@ -1,0 +1,1 @@
+Trial P-61 (issue 551): a pull request linked by hand to an issue.
