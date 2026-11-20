@@ -1,0 +1,44 @@
+# Platform trial P-73 (combsmith/software-factory#1030): what the Checks API takes of one check run's annotations.
+# Each answer is written to a file and redacted by software-factory's tools.redact_trial before it is uploaded.
+name: p73-annotations
+on:
+  push:
+    branches: ["trial/p-73"]
+    paths: ["p73/**", ".github/workflows/p73-annotations.yml"]
+permissions: {}
+jobs:
+  annotations:
+    name: p73 / annotations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      checks: write
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: combsmith/software-factory
+          ref: d53baceb7319c32272e387a3e3bd540383430a1f
+          path: sf
+          persist-credentials: false
+      - name: Ask, write every answer to a file, print nothing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.sha }}
+        run: python3 p73/run.py
+      - name: Redact every answer before anything leaves the job
+        run: |
+          mkdir clean
+          for f in raw/*; do (cd sf && python3 -m tools.redact_trial) < "$f" > "clean/$(basename "$f")" 2> /dev/null; done
+          rm -rf raw
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: p73-clean
+          path: |
+            clean/
+            out/
+          retention-days: 7
